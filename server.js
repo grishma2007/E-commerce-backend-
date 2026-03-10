@@ -31,7 +31,8 @@ mongoose
 //  CORS — allow both frontends (customer + admin)
 // ─────────────────────────────────────────────
 const allowedOrigins = [
-  process.env.CLIENT_URL,          // e.g. https://eyecore.vercel.app
+  process.env.CLIENT_URL,
+  process.env.ADMIN_URL,          // e.g. https://eyecore.vercel.app
   "http://localhost:3000",          // local customer frontend
   "http://localhost:3001",          // local admin frontend
 ].filter(Boolean);
