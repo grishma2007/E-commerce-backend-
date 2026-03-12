@@ -37,15 +37,24 @@
 // module.exports.cloudinary = cloudinary;
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
+
+// ===============================
+// ENSURE UPLOADS FOLDER EXISTS
+// ===============================
+const uploadDir = "uploads/";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 // ===============================
 // STORAGE CONFIG
 // ===============================
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
+  destination: (_req, _file, cb) => {
+    cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);
     cb(null, Date.now() + ext);
   },
@@ -54,16 +63,9 @@ const storage = multer.diskStorage({
 // ===============================
 // FILE FILTER (IMAGES ONLY)
 // ===============================
-const fileFilter = (req, file, cb) => {
-  if (
-    file.mimetype === "image/png" ||
-    file.mimetype === "image/jpg" ||
-    file.mimetype === "image/jpeg"||
-    file.mimetype === "image/webp"||
-    file.mimetype === "image/svg"
-
-
-  ) {
+const fileFilter = (_req, file, cb) => {
+  const allowed = /jpeg|jpg|png|gif|webp|svg/;
+  if (allowed.test(file.mimetype)) {
     cb(null, true);
   } else {
     cb(new Error("Only image files are allowed"), false);
@@ -76,6 +78,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
 module.exports = upload;

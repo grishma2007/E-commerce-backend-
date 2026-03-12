@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const path = require("path");
+const fs = require("fs");
 const Product = require("../models/Product");
 const upload = require("../middleware/upload");
-const { cloudinary } = require("../middleware/upload");
 
 // ─────────────────────────────────────────────
 // GET /products  →  all products
@@ -32,7 +33,7 @@ router.get("/products/:id", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// POST /products  →  add product + upload image to Cloudinary
+// POST /products  →  add product + save image locally
 // ─────────────────────────────────────────────
 router.post("/products", upload.single("image"), async (req, res) => {
   try {
@@ -47,10 +48,8 @@ router.post("/products", upload.single("image"), async (req, res) => {
       return res.status(409).json({ message: "Product ID already exists" });
     }
 
-    // req.file.path  → full Cloudinary HTTPS URL
-    // req.file.filename → Cloudinary public_id
-    const imageUrl      = req.file ? req.file.path     : "";
-    const imagePublicId = req.file ? req.file.filename  : "";
+    // Store relative path — serve via /uploads static middleware in server.js
+    const imageUrl = req.file ? `uploads/${req.file.filename}` : "";
 
     const product = await Product.create({
       productId,
@@ -60,10 +59,9 @@ router.post("/products", upload.single("image"), async (req, res) => {
       brand,
       category,
       description,
-      gender:  gender  || "",
-      shape:   shape   || "",
-      image:         imageUrl,
-      imagePublicId: imagePublicId,
+      gender:  gender || "",
+      shape:   shape  || "",
+      image:   imageUrl,
     });
 
     return res.status(201).json(product);
@@ -79,7 +77,7 @@ router.post("/products", upload.single("image"), async (req, res) => {
 
 // ─────────────────────────────────────────────
 // PUT /products/:id  →  update product
-// If a new image is uploaded, old one is deleted from Cloudinary
+// If a new image is uploaded, old one is deleted from disk
 // ─────────────────────────────────────────────
 router.put("/products/:id", upload.single("image"), async (req, res) => {
   try {
@@ -88,24 +86,28 @@ router.put("/products/:id", upload.single("image"), async (req, res) => {
 
     const { productId, name, price, discountPrice, brand, category, description, gender, shape } = req.body;
 
-    // If a new image was uploaded, delete the old one from Cloudinary
+    // If a new image was uploaded, delete the old file from disk
     if (req.file) {
-      if (product.imagePublicId) {
-        await cloudinary.uploader.destroy(product.imagePublicId);
+      if (product.image) {
+        const oldPath = path.join(__dirname, "..", product.image);
+        if (fs.existsSync(oldPath)) {
+          fs.unlink(oldPath, (err) => {
+            if (err) console.warn("Could not delete old image:", err.message);
+          });
+        }
       }
-      product.image         = req.file.path;
-      product.imagePublicId = req.file.filename;
+      product.image = `uploads/${req.file.filename}`;
     }
 
-    if (productId    !== undefined) product.productId    = productId;
-    if (name         !== undefined) product.name         = name;
-    if (price        !== undefined) product.price        = Number(price);
-    if (discountPrice!== undefined) product.discountPrice= Number(discountPrice);
-    if (brand        !== undefined) product.brand        = brand;
-    if (category     !== undefined) product.category     = category;
-    if (description  !== undefined) product.description  = description;
-    if (gender       !== undefined) product.gender       = gender;
-    if (shape        !== undefined) product.shape        = shape;
+    if (productId     !== undefined) product.productId     = productId;
+    if (name          !== undefined) product.name          = name;
+    if (price         !== undefined) product.price         = Number(price);
+    if (discountPrice !== undefined) product.discountPrice = Number(discountPrice);
+    if (brand         !== undefined) product.brand         = brand;
+    if (category      !== undefined) product.category      = category;
+    if (description   !== undefined) product.description   = description;
+    if (gender        !== undefined) product.gender        = gender;
+    if (shape         !== undefined) product.shape         = shape;
 
     const updated = await product.save();
     return res.status(200).json(updated);
@@ -120,16 +122,21 @@ router.put("/products/:id", upload.single("image"), async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// DELETE /products/:id  →  delete product + remove image from Cloudinary
+// DELETE /products/:id  →  delete product + remove image from disk
 // ─────────────────────────────────────────────
 router.delete("/products/:id", async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    // Delete image from Cloudinary
-    if (product.imagePublicId) {
-      await cloudinary.uploader.destroy(product.imagePublicId);
+    // Delete image file from disk
+    if (product.image) {
+      const filePath = path.join(__dirname, "..", product.image);
+      if (fs.existsSync(filePath)) {
+        fs.unlink(filePath, (err) => {
+          if (err) console.warn("Could not delete image file:", err.message);
+        });
+      }
     }
 
     await product.deleteOne();

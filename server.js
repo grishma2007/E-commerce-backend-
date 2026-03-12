@@ -4,14 +4,15 @@ const mongoose = require("mongoose");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const cors = require("cors");
+const path = require("path");
 
 // ─── Route imports ────────────────────────────────────────────
-const authRoutes    = require("./routes/auth");      // /register /login /logout /me
-const userRoutes    = require("./routes/users");     // /info  /info/:id
-const productRoutes = require("./routes/products");  // /products  /products/:id
-const orderRoutes   = require("./routes/orders");    // /api/orders + sub-routes
-const reviewRoutes  = require("./routes/reviews");   // /reviews/:productId
-const paymentRoutes = require("./routes/payment");   // /api/payment/*
+const authRoutes    = require("./routes/auth");
+const userRoutes    = require("./routes/users");
+const productRoutes = require("./routes/products");
+const orderRoutes   = require("./routes/orders");
+const reviewRoutes  = require("./routes/reviews");
+const paymentRoutes = require("./routes/payment");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -29,13 +30,13 @@ mongoose
   });
 
 // ─────────────────────────────────────────────
-//  CORS — allow both frontends (customer + admin)
+//  CORS
 // ─────────────────────────────────────────────
 const allowedOrigins = [
   process.env.CLIENT_URL,
-  process.env.ADMIN_URL,          // e.g. https://eyecore.vercel.app
-  "http://localhost:3000",          // local customer frontend
-  "http://localhost:3001",          // local admin frontend
+  process.env.ADMIN_URL,
+  "http://localhost:3000",
+  "http://localhost:3001",
 ].filter(Boolean);
 
 app.use(
@@ -60,7 +61,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ─────────────────────────────────────────────
-//  SESSION  (stored in MongoDB Atlas via connect-mongo)
+//  SERVE UPLOADED IMAGES AS STATIC FILES
+//  Access via: https://your-backend.com/uploads/filename.jpg
+// ─────────────────────────────────────────────
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ─────────────────────────────────────────────
+//  SESSION
 // ─────────────────────────────────────────────
 app.use(
   session({
@@ -70,33 +77,26 @@ app.use(
     store: MongoStore.create({
       mongoUrl: process.env.MONGO_URI,
       collectionName: "sessions",
-      ttl: 60 * 60 * 24 * 7, // 7 days
+      ttl: 60 * 60 * 24 * 7,
     }),
     cookie: {
       httpOnly: true,
-      // Production (Vercel HTTPS): secure + sameSite=none required for cross-site cookies
       secure:   process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      maxAge: 1000 * 60 * 60 * 24 * 7,
     },
   })
 );
 
 // ─────────────────────────────────────────────
-//  NOTE: Images are stored on Cloudinary.
-//  product.image = full https://res.cloudinary.com/... URL
-//  No local /uploads folder needed on Vercel.
-// ─────────────────────────────────────────────
-
-// ─────────────────────────────────────────────
 //  ROUTES
 // ─────────────────────────────────────────────
-app.use("/", authRoutes);       // POST /register  POST /login  POST /logout  GET /me
-app.use("/", userRoutes);       // GET/PUT/DELETE /info  /info/:id
-app.use("/", productRoutes);    // GET/POST/PUT/DELETE /products  /products/:id
-app.use("/", orderRoutes);      // /api/orders  and all sub-routes
-app.use("/", reviewRoutes);     // GET/POST /reviews  /reviews/:productId
-app.use("/", paymentRoutes);    // POST /api/payment/create-order  /api/payment/verify-payment
+app.use("/", authRoutes);
+app.use("/", userRoutes);
+app.use("/", productRoutes);
+app.use("/", orderRoutes);
+app.use("/", reviewRoutes);
+app.use("/", paymentRoutes);
 
 // ─────────────────────────────────────────────
 //  HEALTH CHECK
@@ -127,7 +127,7 @@ app.use((err, _req, res, _next) => {
 });
 
 // ─────────────────────────────────────────────
-//  START  (Vercel uses the exported app, local uses listen)
+//  START
 // ─────────────────────────────────────────────
 if (process.env.NODE_ENV !== "production") {
   app.listen(PORT, () => {
@@ -138,6 +138,7 @@ if (process.env.NODE_ENV !== "production") {
     console.log(`    Orders   →  /api/orders  /api/orders/my-orders`);
     console.log(`    Reviews  →  /reviews/:productId`);
     console.log(`    Payment  →  /api/payment/create-order  /api/payment/verify-payment`);
+    console.log(`    Uploads  →  /uploads/<filename>`);
   });
 }
 
