@@ -10,7 +10,7 @@ router.post("/register", async (req, res) => {
     const { name, email, phone, password } = req.body;
 
     // Basic presence check (frontend also validates, but always validate server-side)
-    if (!name || !email || !phone || !password) {
+    if (!name || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
